@@ -12,10 +12,10 @@ from collections import deque
 GAME = 'bird' # the name of the game being played for log files
 ACTIONS = 2 # number of valid actions
 GAMMA = 0.99 # decay rate of past observations
-OBSERVE = 100000. # timesteps to observe before training
-EXPLORE = 150000. # frames over which to anneal epsilon
-FINAL_EPSILON = 0.0 # final value of epsilon
-INITIAL_EPSILON = 0.0 # starting value of epsilon
+OBSERVE = 1000. # timesteps to observe before training
+EXPLORE = 1000000. # frames over which to anneal epsilon
+FINAL_EPSILON = 0.0001 # final value of epsilon
+INITIAL_EPSILON = 0.1 # starting value of epsilon
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 FRAME_PER_ACTION = 1
@@ -78,7 +78,7 @@ def trainNetwork(s, readout, h_fc1, sess):
     # define the cost function
     a = tf.placeholder("float", [None, ACTIONS])
     y = tf.placeholder("float", [None])
-    readout_action = tf.reduce_sum(tf.mul(readout, a), reduction_indices = 1)
+    readout_action = tf.reduce_sum(tf.mul(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
     train_step = tf.train.AdamOptimizer(1e-6).minimize(cost)
 
@@ -98,23 +98,25 @@ def trainNetwork(s, readout, h_fc1, sess):
     x_t, r_0, terminal = game_state.frame_step(do_nothing)
     x_t = cv2.cvtColor(cv2.resize(x_t, (80, 80)), cv2.COLOR_BGR2GRAY)
     ret, x_t = cv2.threshold(x_t,1,255,cv2.THRESH_BINARY)
-    s_t = np.stack((x_t, x_t, x_t, x_t), axis = 2)
+    s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
 
     # saving and loading networks
     saver = tf.train.Saver()
     sess.run(tf.initialize_all_variables())
+    """
     checkpoint = tf.train.get_checkpoint_state("saved_networks")
     if checkpoint and checkpoint.model_checkpoint_path:
         saver.restore(sess, checkpoint.model_checkpoint_path)
         print "Successfully loaded:", checkpoint.model_checkpoint_path
     else:
         print "Could not find old network weights"
-
+    """
+    # start training
     epsilon = INITIAL_EPSILON
     t = 0
     while "flappy bird" != "angry bird":
         # choose an action epsilon greedily
-        readout_t = readout.eval(feed_dict = {s : [s_t]})[0]
+        readout_t = readout.eval(feed_dict={s : [s_t]})[0]
         a_t = np.zeros([ACTIONS])
         action_index = 0
         if t % FRAME_PER_ACTION == 0:
@@ -137,7 +139,8 @@ def trainNetwork(s, readout, h_fc1, sess):
         x_t1 = cv2.cvtColor(cv2.resize(x_t1_colored, (80, 80)), cv2.COLOR_BGR2GRAY)
         ret, x_t1 = cv2.threshold(x_t1, 1, 255, cv2.THRESH_BINARY)
         x_t1 = np.reshape(x_t1, (80, 80, 1))
-        s_t1 = np.append(x_t1, s_t[:,:,1:], axis = 2)
+        #s_t1 = np.append(x_t1, s_t[:,:,1:], axis = 2)
+        s_t1 = np.append(x_t1, s_t[:, :, :3], axis=2)
 
         # store the transition in D
         D.append((s_t, a_t, r_t, s_t1, terminal))
